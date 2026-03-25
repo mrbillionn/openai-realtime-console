@@ -1,6 +1,5 @@
 import express from "express";
 import fs from "fs";
-import { createServer as createViteServer } from "vite";
 import "dotenv/config";
 import { join, dirname, resolve } from "path";
 import { fileURLToPath } from "url";
@@ -17,6 +16,7 @@ const isProd = process.env.NODE_ENV === "production";
 // Configure Vite middleware for React client in development
 let vite;
 if (!isProd) {
+  const { createServer: createViteServer } = await import("vite");
   vite = await createViteServer({
     server: { middlewareMode: true },
     appType: "custom",
@@ -122,6 +122,10 @@ app.use("*", async (req, res, next) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`Express server running on *:${port}`);
-});
+if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
+  app.listen(port, () => {
+    console.log(`Express server running on *:${port}`);
+  });
+}
+
+export default app;
