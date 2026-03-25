@@ -11,7 +11,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const port = process.env.PORT || 3000;
 const apiKey = process.env.OPENAI_API_KEY;
 
-const isProd = process.env.NODE_ENV === "production";
+const isProd = process.env.NODE_ENV === "production" || !!process.env.VERCEL;
 
 // Configure Vite middleware for React client in development
 let vite;
@@ -95,26 +95,36 @@ app.use("*", async (req, res, next) => {
 
   try {
     let template, render;
-    if (!isProd) {
+    if (isProd) {
+      const templatePath = resolve(__dirname, "dist/client/index.html");
+      const serverBundlePath = resolve(__dirname, "dist/server/entry-server.js");
+      
+      console.log(`Checking template at: ${templatePath}`);
+      if (!fs.existsSync(templatePath)) {
+        throw new Error(`Template not found at ${templatePath}`);
+      }
+      
+      console.log(`Checking server bundle at: ${serverBundlePath}`);
+      if (!fs.existsSync(serverBundlePath)) {
+        throw new Error(`Server bundle not found at ${serverBundlePath}`);
+      }
+
+      template = fs.readFileSync(templatePath, "utf-8");
+      ({ render } = await import(serverBundlePath));
+    } else {
       // In development, use Vite's transformIndexHtml and load the source SSR module
       template = await vite.transformIndexHtml(
         url,
         fs.readFileSync("./client/index.html", "utf-8"),
       );
       ({ render } = await vite.ssrLoadModule("./client/entry-server.jsx"));
-    } else {
-      // In production, use the pre-built index.html and SSR bundle
-      template = fs.readFileSync(
-        resolve(__dirname, "./dist/client/index.html"),
-        "utf-8",
-      );
-      ({ render } = await import("./dist/server/entry-server.js"));
     }
 
     const appHtml = await render(url);
     const html = template.replace(`<!--ssr-outlet-->`, appHtml?.html);
     res.status(200).set({ "Content-Type": "text/html" }).end(html);
   } catch (e) {
+    console.error("SSR rendering error:", e);
     if (!isProd) {
       vite.ssrFixStacktrace(e);
     }
