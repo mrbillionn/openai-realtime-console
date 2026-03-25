@@ -4,12 +4,13 @@
     "dev": "nodemon server.js --dev",
     "start": "node server.js",
     "build": "npm run build:client && npm run build:server",
-    "build:client": "vite build --outDir dist/client --ssrManifest",
-    "build:server": "vite build --outDir dist/server --ssr /index.js",
+    "build:client": "vite build --outDir ../dist/client --ssrManifest --emptyOutDir",
+    "build:server": "vite build --outDir ../dist/server --ssr entry-server.jsx --emptyOutDir",
     "devinstall": "zx ../../devinstall.mjs -- node server.js --dev",
     "lint": "eslint . --ext .js,.jsx --fix"
   },
   "dependencies": {
+    "compression": "^1.8.1",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "history": "^5.3.0",
@@ -17,7 +18,8 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-feather": "^2.0.10",
-    "react-router-dom": "^6.20.0"
+    "react-router-dom": "^6.20.0",
+    "serve-static": "^2.2.1"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",

@@ -2,18 +2,35 @@ import express from "express";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import "dotenv/config";
+import { join, dirname, resolve } from "path";
+import { fileURLToPath } from "url";
 
 const app = express();
 app.use(express.text());
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 const port = process.env.PORT || 3000;
 const apiKey = process.env.OPENAI_API_KEY;
 
-// Configure Vite middleware for React client
-const vite = await createViteServer({
-  server: { middlewareMode: true },
-  appType: "custom",
-});
-app.use(vite.middlewares);
+const isProd = process.env.NODE_ENV === "production";
+
+// Configure Vite middleware for React client in development
+let vite;
+if (!isProd) {
+  vite = await createViteServer({
+    server: { middlewareMode: true },
+    appType: "custom",
+  });
+  app.use(vite.middlewares);
+} else {
+  // Production middleware for serving static assets from dist/client
+  app.use((await import("compression")).default());
+  app.use(
+    (await import("serve-static")).default(resolve(__dirname, "./dist/client"), {
+      index: false,
+    }),
+  );
+}
 
 const sessionConfig = JSON.stringify({
   session: {
@@ -77,16 +94,30 @@ app.use("*", async (req, res, next) => {
   const url = req.originalUrl;
 
   try {
-    const template = await vite.transformIndexHtml(
-      url,
-      fs.readFileSync("./client/index.html", "utf-8"),
-    );
-    const { render } = await vite.ssrLoadModule("./client/entry-server.jsx");
+    let template, render;
+    if (!isProd) {
+      // In development, use Vite's transformIndexHtml and load the source SSR module
+      template = await vite.transformIndexHtml(
+        url,
+        fs.readFileSync("./client/index.html", "utf-8"),
+      );
+      ({ render } = await vite.ssrLoadModule("./client/entry-server.jsx"));
+    } else {
+      // In production, use the pre-built index.html and SSR bundle
+      template = fs.readFileSync(
+        resolve(__dirname, "./dist/client/index.html"),
+        "utf-8",
+      );
+      ({ render } = await import("./dist/server/entry-server.js"));
+    }
+
     const appHtml = await render(url);
     const html = template.replace(`<!--ssr-outlet-->`, appHtml?.html);
     res.status(200).set({ "Content-Type": "text/html" }).end(html);
   } catch (e) {
-    vite.ssrFixStacktrace(e);
+    if (!isProd) {
+      vite.ssrFixStacktrace(e);
+    }
     next(e);
   }
 });
